@@ -36,7 +36,9 @@ streamlit, plotly. NOTHING ELSE. No DB, no Docker, no SHAP/LIME.
 8. All 5 labeled attack scenarios must be detected after ANY change.
 
 ## FROZEN (do not modify without Shreya's written OK)
-(empty for now — gets filled after engine goes green)
+- alerts.json schema per CONTRACTS.md — app.py is built against it
+- mock_alerts.py output shape (20 alerts, seed 42, 3 hndl_flag=true)
+- RANDOM_SEED = 42
 
 ## How to verify anything
 python generate_data.py && python engine.py && python tests/test_scenarios.py

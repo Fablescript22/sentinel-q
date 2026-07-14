@@ -5,3 +5,8 @@ Did: created mock_alerts.py (20 alerts, seed 42), rewrote app.py as SOC dashboar
 Verified: 0/20 out-of-order timelines, 3 hndl_flag=true, VERDICT PASS from Fable 5.
 Broken: alert detail view needs selectbox click not row click (expected, not a bug).
 ONE THING: mtime param in load_alerts() is intentional cache-busting — do not rename it with underscore prefix.
+### [S2] crypto_agility + explain modules — DONE
+Did: created crypto_agility.py (3-tier classifier + hndl_context), explain.py (feature labels), tests/test_quantum.py. Fixed false CLAUDE.md attribution and 90-day claim.
+Verified: QUANTUM OK + EXPLAIN OK, VERDICT PASS from Fable 5.
+Broken: nothing.
+ONE THING: when engine.py imports these, add both to CLAUDE.md FROZEN section.

@@ -16,7 +16,7 @@ streamlit, plotly. NOTHING ELSE. No DB, no Docker, no SHAP/LIME.
 - crypto_agility.py  — quantum tier classifier        [OWNER: Shreya]
 - explain.py         — z-score explanations           [OWNER: Shreya]
 - app.py             — streamlit dashboard            [OWNER: Shreya]
-- requirements.txt   — pinned deps                    [OWNER: Shreya]
+- requirements.txt   — unpinned deps (see DECISIONS.md)  [OWNER: Shreya]
 - mock_alerts.py     — mock generator per CONTRACTS   [OWNER: Shreya]
 - tests/             — one test per module
 - docs/, README.md, PRIVACY.md                        [OWNER: Meghna]

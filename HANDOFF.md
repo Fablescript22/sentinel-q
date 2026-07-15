@@ -15,3 +15,8 @@ Did: generate_data.py (seed 42), tests/test_data.py, data/scenarios.md (hand-wri
 Verified: DATA OK, byte-identical hashes across runs, VERDICT PASS from Fable 5.
 Broken: nothing.
 ONE THING: data/ is gitignored — scenarios.md needed git add -f; any non-generated file under data/ hits the same trap. scenarios.md is maintained BY HAND — the generator does not write it.
+### [D2] engine session join — DONE
+Did: engine.py with build_sessions() (gap-based 60-min sessionization, correlated flag), tests/test_sessions.py. One review FAIL fixed: weak test (didn't assert correlation) + false "sliding-window" docstring claim.
+Verified: SESSIONS OK, all 5 scenario actors produce correlated sessions (S4 system-level), VERDICT PASS from Fable 5.
+Broken: nothing.
+ONE THING: sessionization is GAP-BASED, not sliding-window — don't let slides/Q&A claim otherwise. Watch Sonnet's docstrings: two blocks in a row had overclaiming comments.

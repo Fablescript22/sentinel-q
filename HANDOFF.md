@@ -25,3 +25,8 @@ Did: 5 transparent rules in engine.py (RULE_SEVERITY dict at top), plain-English
 Verified: RULES OK, all 5 scenarios fire their rule + 3 clean customers don't, VERDICT PASS from Fable 5.
 Broken: nothing.
 ONE THING: R2's explanation names only the first failed login's device even when stuffing spans devices — cosmetic but judge-visible; don't quote that string on slides without checking. Reviewer only sees diffs — paste referenced files when it asks.
+### [D4] ML anomaly layer — DONE
+Did: per-session features + IsolationForest (random_state=42, contamination=0.05) in engine.py, anomaly_score in [0,1], feature dicts stored for explanations. tests/test_ml.py. Review FAIL fixed: false comment on NEW_BENEFICIARY_NO_SIGNAL_MINUTES.
+Verified: ML OK, VERDICT PASS from Fable 5.
+Broken: nothing.
+ONE THING: ML only SCORES — never creates alerts, never touches rules (INVARIANT 4). Reviewer flagged two non-blocking smells: the 1,000,000 sentinel may dominate IsolationForest splits, and the amount baseline includes the fraudulent txns themselves — test_ml.py's scenario-mean assertion is the tripwire for both. Block ran past its 2h timebox due to a Claude usage limit, not ML difficulty.

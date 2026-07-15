@@ -30,3 +30,8 @@ Did: per-session features + IsolationForest (random_state=42, contamination=0.05
 Verified: ML OK, VERDICT PASS from Fable 5.
 Broken: nothing.
 ONE THING: ML only SCORES — never creates alerts, never touches rules (INVARIANT 4). Reviewer flagged two non-blocking smells: the 1,000,000 sentinel may dominate IsolationForest splits, and the amount baseline includes the fraudulent txns themselves — test_ml.py's scenario-mean assertion is the tripwire for both. Block ran past its 2h timebox due to a Claude usage limit, not ML difficulty.
+### [D5] scoring + alerts.json + FP metric — GATE-1 DONE
+Did: SCORING dict (rules primary via RULE_SEVERITY, anomaly secondary), severity mapping 85/70/50 (FROZEN), data/alerts.json per CONTRACTS.md, SHA-256 pseudonymized customer ids, FP-suppression metric, tests/test_scenarios.py.
+Verified: 5/5 scenarios detected — OK. FP suppressed: 7591 of 7592 single-signal events. VERDICT PASS from Fable 5.
+Broken: nothing.
+ONE THING: two real defects caught pre-commit — (1) contributing_features was labeling raw counts/ratios/sentinels as "standard deviations" (INVARIANT 4/7 violation, judge-visible) — fixed via FEATURE_LABELS honest templates, sentinel excluded from output. (2) FROZEN scoring comment falsely claimed rule severity always determines the bracket — Lead ruled comment-only fix, no threshold/value changes, so alerts.json severities are unchanged from what Hitha/Meghna have. SCORING weights are now genuinely FROZEN — route future changes through Shreya.

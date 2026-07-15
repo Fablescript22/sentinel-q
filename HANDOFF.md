@@ -20,3 +20,8 @@ Did: engine.py with build_sessions() (gap-based 60-min sessionization, correlate
 Verified: SESSIONS OK, all 5 scenario actors produce correlated sessions (S4 system-level), VERDICT PASS from Fable 5.
 Broken: nothing.
 ONE THING: sessionization is GAP-BASED, not sliding-window — don't let slides/Q&A claim otherwise. Watch Sonnet's docstrings: two blocks in a row had overclaiming comments.
+### [D3] rules layer R1-R5 — DONE
+Did: 5 transparent rules in engine.py (RULE_SEVERITY dict at top), plain-English explanations from event values, R5 imports crypto_agility (real file, no stub). tests/test_rules.py. One review FAIL was procedural: wrong allowed-list pasted + reviewer couldn't see crypto_agility.py — resolved by supplying both, diff unchanged.
+Verified: RULES OK, all 5 scenarios fire their rule + 3 clean customers don't, VERDICT PASS from Fable 5.
+Broken: nothing.
+ONE THING: R2's explanation names only the first failed login's device even when stuffing spans devices — cosmetic but judge-visible; don't quote that string on slides without checking. Reviewer only sees diffs — paste referenced files when it asks.

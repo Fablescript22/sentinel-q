@@ -5,6 +5,9 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+import crypto_agility
+import engine
+
 st.set_page_config(page_title="SENTINEL-Q", layout="wide", page_icon="🛡️")
 
 SEVERITY_COLORS = {
@@ -14,6 +17,20 @@ SEVERITY_COLORS = {
     "LOW": "#9aa5b1",
 }
 TIMELINE_COLORS = {"cyber": "#4cc9f0", "txn": "#f72585"}
+
+TIER_ORDER = [crypto_agility.PQC_READY, crypto_agility.QUANTUM_VULNERABLE, crypto_agility.CRITICAL]
+TIER_RANK = {tier: i for i, tier in enumerate(TIER_ORDER)}
+TIER_COLORS = {
+    crypto_agility.PQC_READY: "#2dd4a7",
+    crypto_agility.QUANTUM_VULNERABLE: SEVERITY_COLORS["HIGH"],
+    crypto_agility.CRITICAL: SEVERITY_COLORS["CRITICAL"],
+}
+
+HNDL_DISCLAIMER = (
+    "SENTINEL-Q does not detect quantum computers. It detects data being "
+    "harvested today under quantum-vulnerable encryption — exposed on a "
+    "5-10 year horizon."
+)
 
 DARK_CSS = """
 <style>
@@ -44,6 +61,31 @@ def load_alerts(mtime):
         return None
     with open(path, encoding="utf-8") as f:
         return json.load(f)
+
+
+@st.cache_data
+def load_cyber_events(mtime):
+    path = Path(__file__).parent / "data" / "cyber_events.csv"
+    if not path.exists():
+        return None
+    return pd.read_csv(path)
+
+
+def compute_actor_tiers(cyber_df):
+    """Worst crypto_agility tier per actor (customer_id, incl. internal
+    sys_ actors) seen anywhere in cyber_events.csv, plus their total
+    bytes_out (used to rank migration priority)."""
+    rows = []
+    for actor_id, group in cyber_df.groupby("customer_id"):
+        tiers = [crypto_agility.classify(ke)["tier"] for ke in group["key_exchange"]]
+        worst_tier = max(tiers, key=lambda t: TIER_RANK[t])
+        display_id = engine.pseudonymize_customer_id(actor_id) if actor_id.startswith("cust_") else actor_id
+        rows.append({
+            "actor_id": display_id,
+            "tier": worst_tier,
+            "total_bytes_out": int(group["bytes_out"].sum()),
+        })
+    return pd.DataFrame(rows)
 
 
 def severity_badge(sev):
@@ -129,6 +171,57 @@ def render_detail(alert):
     st.plotly_chart(render_timeline(alert["timeline"]), use_container_width=True)
 
 
+def render_quantum_tab(cyber_df, alerts):
+    actor_tiers = compute_actor_tiers(cyber_df)
+    tier_counts = actor_tiers["tier"].value_counts().reindex(TIER_ORDER, fill_value=0)
+
+    st.markdown("#### Crypto posture across monitored systems")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("PQC-Ready", int(tier_counts[crypto_agility.PQC_READY]))
+    c2.metric("Quantum-Vulnerable", int(tier_counts[crypto_agility.QUANTUM_VULNERABLE]))
+    c3.metric("Critical", int(tier_counts[crypto_agility.CRITICAL]))
+
+    fig = go.Figure(go.Bar(
+        x=TIER_ORDER,
+        y=[int(tier_counts[t]) for t in TIER_ORDER],
+        marker=dict(color=[TIER_COLORS[t] for t in TIER_ORDER]),
+        text=[int(tier_counts[t]) for t in TIER_ORDER],
+        textposition="outside",
+    ))
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="#0e1117",
+        plot_bgcolor="#0e1117",
+        height=320,
+        showlegend=False,
+        xaxis=dict(title=""),
+        yaxis=dict(title="Systems"),
+        margin=dict(l=20, r=20, t=20, b=20),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("#### HNDL alerts — harvest now, decrypt later")
+    st.warning(HNDL_DISCLAIMER)
+    hndl_alerts = [a for a in alerts if a["quantum_exposure"]["hndl_flag"]]
+    if not hndl_alerts:
+        st.info("No HNDL-flagged alerts in data/alerts.json.")
+    else:
+        for a in hndl_alerts:
+            with st.expander(f"⚛️ {a['alert_id']} — {a['customer_id']} — {a['quantum_exposure']['tier']}"):
+                render_detail(a)
+
+    st.markdown("#### Migration priority — top 10")
+    ranked = actor_tiers.copy()
+    ranked["tier_rank"] = ranked["tier"].map(TIER_RANK)
+    ranked = ranked.sort_values(["tier_rank", "total_bytes_out"], ascending=[False, False]).head(10)
+    display_df = ranked[["actor_id", "tier", "total_bytes_out"]].rename(columns={
+        "actor_id": "System",
+        "tier": "Quantum tier",
+        "total_bytes_out": "Total bytes out",
+    })
+    st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+
 def main():
     st.markdown(DARK_CSS, unsafe_allow_html=True)
     st.title("🛡️ SENTINEL-Q — Correlated Threat & Quantum Risk Intelligence")
@@ -143,6 +236,10 @@ def main():
     alerts = data.get("alerts", [])
     kpis = data.get("kpis", {})
 
+    cyber_path = Path(__file__).parent / "data" / "cyber_events.csv"
+    cyber_mtime = cyber_path.stat().st_mtime if cyber_path.exists() else None
+    cyber_df = load_cyber_events(cyber_mtime) if cyber_mtime else None
+
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("Events analyzed", f"{kpis.get('events_analyzed', 0):,}")
     k2.metric("Active alerts", kpis.get("active_alerts", len(alerts)))
@@ -151,8 +248,26 @@ def main():
 
     st.sidebar.header("Filters")
     severity_options = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Scenario replay")
+    if st.sidebar.button("Replay attack scenario (S1 — account takeover)"):
+        s1_alert = next(
+            (a for a in alerts if any(r["rule_id"] == "R4" for r in a["triggered_rules"])),
+            None,
+        )
+        if s1_alert is not None:
+            st.session_state["view"] = "Alert Queue"
+            st.session_state["severity_filter"] = severity_options
+            st.session_state["alert_select"] = s1_alert["alert_id"]
+            st.sidebar.success(f"Loaded {s1_alert['alert_id']} in the Alert Queue view below.")
+        else:
+            st.sidebar.error("S1 scenario alert not found in data/alerts.json.")
+
+    if "severity_filter" not in st.session_state:
+        st.session_state["severity_filter"] = severity_options
     selected_severities = st.sidebar.multiselect(
-        "Severity", severity_options, default=severity_options
+        "Severity", severity_options, key="severity_filter"
     )
 
     with st.sidebar.expander("About SENTINEL-Q"):
@@ -162,6 +277,20 @@ def main():
             "whose crypto posture leaves them exposed to future quantum decryption "
             "risk (\"harvest now, decrypt later\")."
         )
+
+    if "view" not in st.session_state:
+        st.session_state["view"] = "Alert Queue"
+    view = st.segmented_control(
+        "View", ["Alert Queue", "Quantum Risk Monitor"], key="view"
+    )
+
+    if view == "Quantum Risk Monitor":
+        st.markdown("### Quantum Risk Monitor")
+        if cyber_df is None:
+            st.info("Run generate_data.py to produce data/cyber_events.csv.")
+        else:
+            render_quantum_tab(cyber_df, alerts)
+        return
 
     if not alerts:
         st.info("No alerts in data/alerts.json.")
@@ -202,7 +331,9 @@ def main():
 
     st.markdown("### Alert detail")
     alert_ids = [a["alert_id"] for a in filtered]
-    selected_id = st.selectbox("Select an alert to inspect", alert_ids)
+    if st.session_state.get("alert_select") not in alert_ids:
+        st.session_state.pop("alert_select", None)
+    selected_id = st.selectbox("Select an alert to inspect", alert_ids, key="alert_select")
     selected_alert = next(a for a in filtered if a["alert_id"] == selected_id)
     render_detail(selected_alert)
 

@@ -1,0 +1,445 @@
+{
+  "alerts": [
+    {
+      "alert_id": "A-0001",
+      "customer_id": "cust_c4a7b464e7e8",
+      "risk_score": 95,
+      "severity": "CRITICAL",
+      "triggered_rules": [
+        {
+          "rule_id": "R5",
+          "name": "HNDL exfiltration risk",
+          "severity": "CRITICAL"
+        }
+      ],
+      "explanation": "sys_001 sent 500,000.0 bytes via file_transfer using RSA-1024 (CRITICAL) \u2014 10.5x its baseline of 47,553 bytes, and that crypto is quantum-exposed.",
+      "contributing_features": [
+        {
+          "feature": "amount_zscore",
+          "value": 0.0,
+          "label": "Amount is 0.0 standard deviations above this customer's historical average."
+        },
+        {
+          "feature": "txn_velocity",
+          "value": 0.0,
+          "label": "0.0 transactions per hour during this session."
+        },
+        {
+          "feature": "geo_velocity",
+          "value": 0.0,
+          "label": "0.0 login country-switches per hour during this session."
+        },
+        {
+          "feature": "failed_login_count",
+          "value": 0.0,
+          "label": "0 failed logins in this session."
+        },
+        {
+          "feature": "bytes_out_ratio",
+          "value": 10.5146,
+          "label": "Outbound bytes were 10.5x this account's baseline."
+        }
+      ],
+      "quantum_exposure": {
+        "tier": "CRITICAL",
+        "hndl_flag": true
+      },
+      "recommended_action": "Rotate to a PQC-ready key exchange, isolate the system, begin exfiltration forensics",
+      "timeline": [
+        {
+          "ts": "2026-07-02T04:00:00+05:30",
+          "type": "cyber",
+          "label": "File Transfer (500,000.0 bytes, CRITICAL)"
+        }
+      ]
+    },
+    {
+      "alert_id": "A-0002",
+      "customer_id": "cust_13a116d295e4",
+      "risk_score": 92,
+      "severity": "CRITICAL",
+      "triggered_rules": [
+        {
+          "rule_id": "R2",
+          "name": "Credential stuffing",
+          "severity": "HIGH"
+        }
+      ],
+      "explanation": "21 failed logins from dev_S2_ATTACKER between 03:00 IST and 03:10 IST, followed by a successful login and 5 transfers totaling Rs 3,875.00 within 15 minutes.",
+      "contributing_features": [
+        {
+          "feature": "amount_zscore",
+          "value": -0.3156,
+          "label": "Amount is 0.3 standard deviations below this customer's historical average."
+        },
+        {
+          "feature": "txn_velocity",
+          "value": 19.3548,
+          "label": "19.4 transactions per hour during this session."
+        },
+        {
+          "feature": "geo_velocity",
+          "value": 0.0,
+          "label": "0.0 login country-switches per hour during this session."
+        },
+        {
+          "feature": "new_beneficiary_recency",
+          "value": 151393.5167,
+          "label": "Newest beneficiary was added 151394 minutes before being paid."
+        },
+        {
+          "feature": "failed_login_count",
+          "value": 21.0,
+          "label": "21 failed logins in this session."
+        },
+        {
+          "feature": "bytes_out_ratio",
+          "value": 22.0,
+          "label": "Outbound bytes were 22.0x this account's baseline."
+        }
+      ],
+      "quantum_exposure": {
+        "tier": "QUANTUM-VULNERABLE",
+        "hndl_flag": false
+      },
+      "recommended_action": "Lock account, force password reset, block device",
+      "timeline": [
+        {
+          "ts": "2026-06-18T03:00:00+05:30",
+          "type": "cyber",
+          "label": "Failed login attempt from India"
+        },
+        {
+          "ts": "2026-06-18T03:00:30+05:30",
+          "type": "cyber",
+          "label": "Failed login attempt from India"
+        },
+        {
+          "ts": "2026-06-18T03:01:00+05:30",
+          "type": "cyber",
+          "label": "Failed login attempt from India"
+        },
+        {
+          "ts": "2026-06-18T03:01:30+05:30",
+          "type": "cyber",
+          "label": "Failed login attempt from India"
+        },
+        {
+          "ts": "2026-06-18T03:02:00+05:30",
+          "type": "cyber",
+          "label": "Failed login attempt from India"
+        },
+        {
+          "ts": "2026-06-18T03:02:30+05:30",
+          "type": "cyber",
+          "label": "Failed login attempt from India"
+        },
+        {
+          "ts": "2026-06-18T03:03:00+05:30",
+          "type": "cyber",
+          "label": "Failed login attempt from India"
+        },
+        {
+          "ts": "2026-06-18T03:03:30+05:30",
+          "type": "cyber",
+          "label": "Failed login attempt from India"
+        },
+        {
+          "ts": "2026-06-18T03:04:00+05:30",
+          "type": "cyber",
+          "label": "Failed login attempt from India"
+        },
+        {
+          "ts": "2026-06-18T03:04:30+05:30",
+          "type": "cyber",
+          "label": "Failed login attempt from India"
+        },
+        {
+          "ts": "2026-06-18T03:05:00+05:30",
+          "type": "cyber",
+          "label": "Failed login attempt from India"
+        },
+        {
+          "ts": "2026-06-18T03:05:30+05:30",
+          "type": "cyber",
+          "label": "Failed login attempt from India"
+        },
+        {
+          "ts": "2026-06-18T03:06:00+05:30",
+          "type": "cyber",
+          "label": "Failed login attempt from India"
+        },
+        {
+          "ts": "2026-06-18T03:06:30+05:30",
+          "type": "cyber",
+          "label": "Failed login attempt from India"
+        },
+        {
+          "ts": "2026-06-18T03:07:00+05:30",
+          "type": "cyber",
+          "label": "Failed login attempt from India"
+        },
+        {
+          "ts": "2026-06-18T03:07:30+05:30",
+          "type": "cyber",
+          "label": "Failed login attempt from India"
+        },
+        {
+          "ts": "2026-06-18T03:08:00+05:30",
+          "type": "cyber",
+          "label": "Failed login attempt from India"
+        },
+        {
+          "ts": "2026-06-18T03:08:30+05:30",
+          "type": "cyber",
+          "label": "Failed login attempt from India"
+        },
+        {
+          "ts": "2026-06-18T03:09:00+05:30",
+          "type": "cyber",
+          "label": "Failed login attempt from India"
+        },
+        {
+          "ts": "2026-06-18T03:09:30+05:30",
+          "type": "cyber",
+          "label": "Failed login attempt from India"
+        },
+        {
+          "ts": "2026-06-18T03:10:00+05:30",
+          "type": "cyber",
+          "label": "Failed login attempt from India"
+        },
+        {
+          "ts": "2026-06-18T03:10:30+05:30",
+          "type": "cyber",
+          "label": "Login from India"
+        },
+        {
+          "ts": "2026-06-18T03:11:30+05:30",
+          "type": "txn",
+          "label": "UPI transfer of Rs 500.00 to ben_66039205"
+        },
+        {
+          "ts": "2026-06-18T03:12:30+05:30",
+          "type": "txn",
+          "label": "UPI transfer of Rs 637.50 to ben_14607455"
+        },
+        {
+          "ts": "2026-06-18T03:13:30+05:30",
+          "type": "txn",
+          "label": "UPI transfer of Rs 775.00 to ben_53470574"
+        },
+        {
+          "ts": "2026-06-18T03:14:30+05:30",
+          "type": "txn",
+          "label": "UPI transfer of Rs 912.50 to ben_23885652"
+        },
+        {
+          "ts": "2026-06-18T03:15:30+05:30",
+          "type": "txn",
+          "label": "UPI transfer of Rs 1,050.00 to ben_71559835"
+        }
+      ]
+    },
+    {
+      "alert_id": "A-0003",
+      "customer_id": "cust_7d18b8aacd88",
+      "risk_score": 91,
+      "severity": "CRITICAL",
+      "triggered_rules": [
+        {
+          "rule_id": "R4",
+          "name": "Account takeover",
+          "severity": "HIGH"
+        }
+      ],
+      "explanation": "Login from Nigeria at 02:10 IST followed 45 minutes later by a Rs 7.25L NEFT transfer to a beneficiary added 23 minutes earlier.",
+      "contributing_features": [
+        {
+          "feature": "amount_zscore",
+          "value": 0.4106,
+          "label": "Amount is 0.4 standard deviations above this customer's historical average."
+        },
+        {
+          "feature": "txn_velocity",
+          "value": 1.3333,
+          "label": "1.3 transactions per hour during this session."
+        },
+        {
+          "feature": "geo_velocity",
+          "value": 0.0,
+          "label": "0.0 login country-switches per hour during this session."
+        },
+        {
+          "feature": "new_beneficiary_recency",
+          "value": 23.0,
+          "label": "Newest beneficiary was added 23 minutes before being paid."
+        },
+        {
+          "feature": "failed_login_count",
+          "value": 0.0,
+          "label": "0 failed logins in this session."
+        },
+        {
+          "feature": "bytes_out_ratio",
+          "value": 3.9497,
+          "label": "Outbound bytes were 3.9x this account's baseline."
+        }
+      ],
+      "quantum_exposure": {
+        "tier": "QUANTUM-VULNERABLE",
+        "hndl_flag": false
+      },
+      "recommended_action": "Freeze beneficiary, step-up auth",
+      "timeline": [
+        {
+          "ts": "2026-06-25T02:10:00+05:30",
+          "type": "cyber",
+          "label": "Login from Nigeria"
+        },
+        {
+          "ts": "2026-06-25T02:55:00+05:30",
+          "type": "txn",
+          "label": "NEFT transfer of Rs 7.25L to ben_S1NEWBEN"
+        }
+      ]
+    },
+    {
+      "alert_id": "A-0004",
+      "customer_id": "cust_9d3debe3bee4",
+      "risk_score": 90,
+      "severity": "CRITICAL",
+      "triggered_rules": [
+        {
+          "rule_id": "R1",
+          "name": "Impossible travel + transfer",
+          "severity": "HIGH"
+        }
+      ],
+      "explanation": "Login from Germany at 02:13 IST, 41 min after a login from India, followed by a Rs 4.80L NEFT transfer to a beneficiary added 6 minutes earlier.",
+      "contributing_features": [
+        {
+          "feature": "amount_zscore",
+          "value": -0.1093,
+          "label": "Amount is 0.1 standard deviations below this customer's historical average."
+        },
+        {
+          "feature": "txn_velocity",
+          "value": 1.25,
+          "label": "1.2 transactions per hour during this session."
+        },
+        {
+          "feature": "geo_velocity",
+          "value": 1.25,
+          "label": "1.2 login country-switches per hour during this session."
+        },
+        {
+          "feature": "new_beneficiary_recency",
+          "value": 6.0,
+          "label": "Newest beneficiary was added 6 minutes before being paid."
+        },
+        {
+          "feature": "failed_login_count",
+          "value": 0.0,
+          "label": "0 failed logins in this session."
+        },
+        {
+          "feature": "bytes_out_ratio",
+          "value": 1.7573,
+          "label": "Outbound bytes were 1.8x this account's baseline."
+        }
+      ],
+      "quantum_exposure": {
+        "tier": "QUANTUM-VULNERABLE",
+        "hndl_flag": false
+      },
+      "recommended_action": "Freeze beneficiary, step-up auth",
+      "timeline": [
+        {
+          "ts": "2026-06-29T01:32:00+05:30",
+          "type": "cyber",
+          "label": "Login from India"
+        },
+        {
+          "ts": "2026-06-29T02:13:00+05:30",
+          "type": "cyber",
+          "label": "Login from Germany"
+        },
+        {
+          "ts": "2026-06-29T02:20:00+05:30",
+          "type": "txn",
+          "label": "NEFT transfer of Rs 4.80L to ben_S5NEWBEN"
+        }
+      ]
+    },
+    {
+      "alert_id": "A-0005",
+      "customer_id": "cust_00cdef5c57dc",
+      "risk_score": 77,
+      "severity": "HIGH",
+      "triggered_rules": [
+        {
+          "rule_id": "R3",
+          "name": "Dormant account burst",
+          "severity": "MEDIUM"
+        }
+      ],
+      "explanation": "Account silent for 28 days, then a login followed 12 minutes later by a Rs 1.00Cr RTGS transfer.",
+      "contributing_features": [
+        {
+          "feature": "amount_zscore",
+          "value": 0.0,
+          "label": "Amount is 0.0 standard deviations above this customer's historical average."
+        },
+        {
+          "feature": "txn_velocity",
+          "value": 5.0,
+          "label": "5.0 transactions per hour during this session."
+        },
+        {
+          "feature": "geo_velocity",
+          "value": 0.0,
+          "label": "0.0 login country-switches per hour during this session."
+        },
+        {
+          "feature": "new_beneficiary_recency",
+          "value": 333972.0167,
+          "label": "Newest beneficiary was added 333972 minutes before being paid."
+        },
+        {
+          "feature": "failed_login_count",
+          "value": 0.0,
+          "label": "0 failed logins in this session."
+        },
+        {
+          "feature": "bytes_out_ratio",
+          "value": 1.0,
+          "label": "Outbound bytes were 1.0x this account's baseline."
+        }
+      ],
+      "quantum_exposure": {
+        "tier": "QUANTUM-VULNERABLE",
+        "hndl_flag": false
+      },
+      "recommended_action": "Hold transfer pending customer verification",
+      "timeline": [
+        {
+          "ts": "2026-07-10T22:00:00+05:30",
+          "type": "cyber",
+          "label": "Login from India"
+        },
+        {
+          "ts": "2026-07-10T22:12:00+05:30",
+          "type": "txn",
+          "label": "RTGS transfer of Rs 1.00Cr to ben_41165972"
+        }
+      ]
+    }
+  ],
+  "kpis": {
+    "events_analyzed": 12719,
+    "active_alerts": 5,
+    "fp_suppressed": 7591,
+    "quantum_exposed_systems": 40
+  }
+}

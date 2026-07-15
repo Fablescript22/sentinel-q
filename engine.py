@@ -11,7 +11,10 @@ those sessions. Per CLAUDE.md INVARIANT 4, this layer only fires rules and
 explains them in plain English — it does not score. ML-based scoring is a
 separate later stage.
 """
+import hashlib
+import json
 import os
+import time
 from datetime import timedelta
 
 import numpy as np
@@ -19,6 +22,7 @@ import pandas as pd
 from sklearn.ensemble import IsolationForest
 
 import crypto_agility
+import explain
 
 SESSION_GAP_MINUTES = 60
 RANDOM_SEED = 42  # CLAUDE.md INVARIANT 1: RANDOM_SEED = 42 everywhere.
@@ -47,6 +51,57 @@ RULE_SEVERITY = {
     "R4": "HIGH",      # new beneficiary + large transfer after a risky login
     "R5": "CRITICAL",  # HNDL pattern (weak crypto AND exfiltration-shaped bytes)
 }
+
+RULE_NAMES = {
+    "R1": "Impossible travel + transfer",
+    "R2": "Credential stuffing",
+    "R3": "Dormant account burst",
+    "R4": "Account takeover",
+    "R5": "HNDL exfiltration risk",
+}
+
+RECOMMENDED_ACTION = {
+    "R1": "Freeze beneficiary, step-up auth",
+    "R2": "Lock account, force password reset, block device",
+    "R3": "Hold transfer pending customer verification",
+    "R4": "Freeze beneficiary, step-up auth",
+    "R5": "Rotate to a PQC-ready key exchange, isolate the system, begin exfiltration forensics",
+}
+
+SEVERITY_RANK = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
+
+# ---------------------------------------------------------------------------
+# risk_score fusion — FROZEN after this session (do not retune without
+# team sign-off). Rules are primary: risk_score = severity_base + bonus,
+# where bonus = anomaly_score * anomaly_weight (anomaly_score in [0,1], from
+# score_anomalies). severity_base alone does NOT guarantee the matching
+# severity_from_score bracket: MEDIUM's base (70) already sits at the HIGH
+# threshold, and a HIGH base (82) plus a bonus of >=3 (anomaly_score >=0.25)
+# crosses into CRITICAL (>=85). So the anomaly bonus can move a session into
+# a higher bracket than its rule severity alone would imply — it scores
+# on top of rules, per CLAUDE.md INVARIANT 4 (ML scores, it doesn't decide
+# which rule fired), but that scoring can still shift the final bracket.
+# ---------------------------------------------------------------------------
+SCORING = {
+    "severity_base": {"LOW": 20, "MEDIUM": 70, "HIGH": 82, "CRITICAL": 92},
+    "anomaly_weight": 12,
+}
+
+
+def compute_risk_score(highest_severity, anomaly_score):
+    base = SCORING["severity_base"][highest_severity]
+    bonus = anomaly_score * SCORING["anomaly_weight"]
+    return int(min(100, round(base + bonus)))
+
+
+def severity_from_score(risk_score):
+    if risk_score >= 85:
+        return "CRITICAL"
+    if risk_score >= 70:
+        return "HIGH"
+    if risk_score >= 50:
+        return "MEDIUM"
+    return "LOW"
 
 # ISO country code -> display name, used only to make explanation strings
 # readable ("Germany" instead of "DE"). This is exactly the src_country the
@@ -414,6 +469,19 @@ ML_FEATURE_NAMES = [
     "bytes_out_ratio",
 ]
 
+# Honest plain-English templates for ML_FEATURE_NAMES entries that are NOT
+# true z-scores (raw counts/rates/ratios) — anything listed here is never
+# routed through explain.feature_labels(), so it never claims "standard
+# deviations" it didn't compute. amount_zscore is the only true z-score
+# among ML_FEATURE_NAMES and is deliberately absent from this dict.
+FEATURE_LABELS = {
+    "txn_velocity": "{value:.1f} transactions per hour during this session.",
+    "geo_velocity": "{value:.1f} login country-switches per hour during this session.",
+    "new_beneficiary_recency": "Newest beneficiary was added {value:.0f} minutes before being paid.",
+    "failed_login_count": "{value:.0f} failed logins in this session.",
+    "bytes_out_ratio": "Outbound bytes were {value:.1f}x this account's baseline.",
+}
+
 
 def compute_customer_amount_stats(txn_df):
     """Per customer_id: (mean, std) of amount_inr across all their
@@ -551,7 +619,160 @@ def score_anomalies(sessions, cyber_df, txn_df):
     }
 
 
+# ---------------------------------------------------------------------------
+# alerts.json builder — fuses rules + ML into risk_score/severity and shapes
+# the CONTRACTS.md alert record. app.py (Shreya) is built against this exact
+# schema — do not change field names/shapes without her written OK.
+# ---------------------------------------------------------------------------
+
+def pseudonymize_customer_id(raw_id):
+    """SHA-256 pseudonymization per CLAUDE.md INVARIANT 6 (hash only, no
+    tokenization claims): first 12 hex chars, prefixed "cust_"."""
+    digest = hashlib.sha256(raw_id.encode()).hexdigest()[:12]
+    return f"cust_{digest}"
+
+
+def _session_quantum_tier(session):
+    """Worst (most quantum-exposed) crypto_agility tier among this
+    session's cyber events; PQC-READY if it has none."""
+    tier_rank = {crypto_agility.PQC_READY: 0, crypto_agility.QUANTUM_VULNERABLE: 1, crypto_agility.CRITICAL: 2}
+    tiers = [crypto_agility.classify(e.get("key_exchange"))["tier"] for e in session["cyber_events"]]
+    if not tiers:
+        return crypto_agility.PQC_READY
+    return max(tiers, key=lambda t: tier_rank[t])
+
+
+def _cyber_event_label(evt):
+    if evt["event_type"] == "login":
+        country = _country_name(evt["src_country"])
+        return f"Login from {country}" if evt["success"] else f"Failed login attempt from {country}"
+    tier = crypto_agility.classify(evt.get("key_exchange"))["tier"]
+    label = evt["event_type"].replace("_", " ").title()
+    return f"{label} ({evt['bytes_out']:,} bytes, {tier})"
+
+
+def _txn_event_label(txn):
+    return f"{txn['channel']} transfer of {_fmt_inr(txn['amount_inr'])} to {txn['beneficiary_id']}"
+
+
+def build_timeline(session):
+    """Chronological cyber+txn events for one session, per CONTRACTS.md's
+    timeline shape ({"ts","type","label"})."""
+    events = []
+    for evt in session["cyber_events"]:
+        events.append((_parse_ts(evt["ts"]), "cyber", _cyber_event_label(evt)))
+    for txn in session["transactions"]:
+        events.append((_parse_ts(txn["ts"]), "txn", _txn_event_label(txn)))
+    events.sort(key=lambda e: e[0])
+    return [{"ts": ts.isoformat(), "type": kind, "label": label} for ts, kind, label in events]
+
+
+def build_contributing_features(features):
+    """Label each engineered ML feature with what its value actually is.
+
+    Only amount_zscore is a true z-score (mean/std-normalized against this
+    customer's own transaction history), so it's the only feature routed
+    through explain.feature_labels(). The rest of ML_FEATURE_NAMES are raw
+    counts/rates/ratios, not z-scores, so they get an honest FEATURE_LABELS
+    template instead of a false "standard deviations" claim. new_beneficiary_
+    recency is dropped entirely when it's the NEW_BENEFICIARY_NO_SIGNAL_MINUTES
+    sentinel (session had no transactions) — there is nothing real to report.
+    """
+    zscore_features = {name: value for name, value in features.items() if name not in FEATURE_LABELS}
+    zscore_labels = dict(zip(zscore_features, explain.feature_labels(zscore_features)))
+
+    result = []
+    for name, value in features.items():
+        if name == "new_beneficiary_recency" and value == NEW_BENEFICIARY_NO_SIGNAL_MINUTES:
+            continue
+        label = FEATURE_LABELS[name].format(value=value) if name in FEATURE_LABELS else zscore_labels[name]
+        result.append({"feature": name, "value": round(value, 4), "label": label})
+    return result
+
+
+def build_alert(alert_id, session, session_hits, anomaly_info):
+    """Assemble one CONTRACTS.md alert record for a session with >=1 fired
+    rule. hndl_flag is tied directly to R5 having fired, which is itself
+    gated by crypto_agility.hndl_context — so it can only be true when
+    vulnerable crypto AND exfiltration-shaped bytes co-occurred (INVARIANT 2)."""
+    triggered_rules = [
+        {"rule_id": h["rule_id"], "name": RULE_NAMES[h["rule_id"]], "severity": h["severity"]}
+        for h in session_hits
+    ]
+    fired_rule_ids = [h["rule_id"] for h in session_hits]
+    highest_severity = max((h["severity"] for h in session_hits), key=lambda s: SEVERITY_RANK[s])
+    risk_score = compute_risk_score(highest_severity, anomaly_info["anomaly_score"])
+
+    return {
+        "alert_id": alert_id,
+        "customer_id": pseudonymize_customer_id(session["customer_id"]),
+        "risk_score": risk_score,
+        "severity": severity_from_score(risk_score),
+        "triggered_rules": triggered_rules,
+        "explanation": " ".join(h["explanation"] for h in session_hits),
+        "contributing_features": build_contributing_features(anomaly_info["features"]),
+        "quantum_exposure": {
+            "tier": _session_quantum_tier(session),
+            "hndl_flag": "R5" in fired_rule_ids,
+        },
+        "recommended_action": "; ".join(RECOMMENDED_ACTION[rid] for rid in fired_rule_ids),
+        "timeline": build_timeline(session),
+    }
+
+
+# ---------------------------------------------------------------------------
+# FP-suppression KPI — counts sessions tripping exactly one weak, uncorrelated
+# signal (what a naive single-factor system would alert on individually) and
+# how many of those SENTINEL-Q correctly suppresses because no correlated
+# rule (R1-R5) actually fired for that session.
+# ---------------------------------------------------------------------------
+
+def _naive_single_signals(session):
+    """Weak signals a naive single-factor system would alert on alone: one
+    foreign login, one large transfer, any failed login, or any
+    quantum-exposed crypto use."""
+    signals = set()
+    if any(e["event_type"] == "login" and e["success"] and e["src_country"] != "IN"
+           for e in session["cyber_events"]):
+        signals.add("foreign_login")
+    if any(t["amount_inr"] >= LARGE_TRANSFER_THRESHOLD_INR for t in session["transactions"]):
+        signals.add("large_transfer")
+    if any(e["event_type"] == "login" and not e["success"] for e in session["cyber_events"]):
+        signals.add("failed_login")
+    if any(crypto_agility.classify(e.get("key_exchange"))["tier"] != crypto_agility.PQC_READY
+           for e in session["cyber_events"]):
+        signals.add("weak_crypto")
+    return signals
+
+
+def compute_fp_suppression(sessions, alerted_session_ids):
+    """N of M: M = sessions tripping exactly one weak signal (what a naive
+    single-signal system would alert on), N = how many of those we
+    correctly suppress because no rule fired for that session."""
+    m = 0
+    n = 0
+    for session in sessions:
+        if len(_naive_single_signals(session)) == 1:
+            m += 1
+            if session["session_id"] not in alerted_session_ids:
+                n += 1
+    return n, m
+
+
+def compute_quantum_exposed_systems(cyber_df):
+    """Count of distinct internal systems (customer_id prefix 'sys_') with
+    at least one quantum-exposed (non-PQC-READY) crypto event."""
+    sys_events = cyber_df[cyber_df["customer_id"].str.startswith("sys_")]
+    exposed = set()
+    for actor_id, key_exchanges in sys_events.groupby("customer_id")["key_exchange"]:
+        if any(crypto_agility.classify(ke)["tier"] != crypto_agility.PQC_READY for ke in key_exchanges):
+            exposed.add(actor_id)
+    return len(exposed)
+
+
 if __name__ == "__main__":
+    pipeline_start = time.time()
+
     cyber_df = pd.read_csv(CYBER_CSV)
     txn_df = pd.read_csv(TXN_CSV)
     sessions = build_sessions(cyber_df, txn_df)
@@ -563,3 +784,33 @@ if __name__ == "__main__":
 
     anomaly_scores = score_anomalies(sessions, cyber_df, txn_df)
     print(f"ML anomaly scores computed for {len(anomaly_scores)} sessions")
+
+    hits_by_session = {}
+    for hit in hits:
+        hits_by_session.setdefault(hit["session_id"], []).append(hit)
+    sessions_by_id = {s["session_id"]: s for s in sessions}
+
+    alerts = [
+        build_alert(None, sessions_by_id[session_id], session_hits, anomaly_scores[session_id])
+        for session_id, session_hits in hits_by_session.items()
+    ]
+    alerts.sort(key=lambda a: a["risk_score"], reverse=True)
+    for i, alert in enumerate(alerts, start=1):
+        alert["alert_id"] = f"A-{i:04d}"
+
+    fp_suppressed, fp_total = compute_fp_suppression(sessions, set(hits_by_session.keys()))
+    print(f"FP suppressed: {fp_suppressed} of {fp_total} single-signal events")
+
+    kpis = {
+        "events_analyzed": len(cyber_df) + len(txn_df),
+        "active_alerts": len(alerts),
+        "fp_suppressed": fp_suppressed,
+        "quantum_exposed_systems": compute_quantum_exposed_systems(cyber_df),
+    }
+
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(os.path.join(DATA_DIR, "alerts.json"), "w") as f:
+        json.dump({"alerts": alerts, "kpis": kpis}, f, indent=2)
+
+    runtime = time.time() - pipeline_start
+    print(f"Pipeline runtime: {runtime:.2f}s for {kpis['events_analyzed']} events")

@@ -35,3 +35,8 @@ Did: SCORING dict (rules primary via RULE_SEVERITY, anomaly secondary), severity
 Verified: 5/5 scenarios detected — OK. FP suppressed: 7591 of 7592 single-signal events. VERDICT PASS from Fable 5.
 Broken: nothing.
 ONE THING: two real defects caught pre-commit — (1) contributing_features was labeling raw counts/ratios/sentinels as "standard deviations" (INVARIANT 4/7 violation, judge-visible) — fixed via FEATURE_LABELS honest templates, sentinel excluded from output. (2) FROZEN scoring comment falsely claimed rule severity always determines the bracket — Lead ruled comment-only fix, no threshold/value changes, so alerts.json severities are unchanged from what Hitha/Meghna have. SCORING weights are now genuinely FROZEN — route future changes through Shreya.
+### [D6] hardening — DONE
+Did: added edge-case assertions to tests/test_scenarios.py (empty-window customers, alerts.json valid JSON, kpis block has all 4 keys). Verified reproducibility: ran full pipeline in two separate fresh terminals, identical 5/5 output and identical FP number both times.
+Verified: 5/5 scenarios detected — OK. VERDICT PASS from Fable 5.
+Broken: nothing.
+ONE THING: engine.py is now FROZEN pending Shreya's GATE-5. Any future engine changes must be routed through her as P0s.

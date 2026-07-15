@@ -44,5 +44,13 @@ streamlit, plotly. NOTHING ELSE. No DB, no Docker, no SHAP/LIME.
 python generate_data.py && python engine.py && python tests/test_scenarios.py
 Must print: "5/5 scenarios detected — OK"
 
-## Current status
-Hour 0. Nothing built yet.
+## Current status (as of Wed 15 July, 11pm)
+DONE: S0, S1, S2, architecture diagram, README, PRIVACY, Judge Q&A, LICENSE, deck v1
+IN PROGRESS: Devu finishing D5 — GATE-1 imminent
+NEXT: S3 (wire real data + quantum tab) the moment GATE-1 lands
+FROZEN: mock_alerts.py output shape, alerts.json schema per CONTRACTS.md,
+        RANDOM_SEED=42, HNDL threshold 5x, explain.py "historical average" wording,
+        crypto_agility.py 5x threshold comment fixed
+DECK: docs/SENTINEL_Q_Deck.pptx exists, needs screenshots + FP number + video link
+VIDEO: not recorded yet
+SUBMISSION DEADLINE: Thursday 16 July, 3pm IST

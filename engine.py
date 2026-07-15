@@ -14,11 +14,14 @@ separate later stage.
 import os
 from datetime import timedelta
 
+import numpy as np
 import pandas as pd
+from sklearn.ensemble import IsolationForest
 
 import crypto_agility
 
 SESSION_GAP_MINUTES = 60
+RANDOM_SEED = 42  # CLAUDE.md INVARIANT 1: RANDOM_SEED = 42 everywhere.
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 CYBER_CSV = os.path.join(DATA_DIR, "cyber_events.csv")
@@ -388,6 +391,166 @@ def evaluate_rules(sessions, cyber_df):
     return hits
 
 
+# ---------------------------------------------------------------------------
+# ML anomaly layer — IsolationForest over engineered per-session features.
+# Per CLAUDE.md INVARIANT 4, this layer only SCORES: it does not fire alerts
+# and does not read or influence the rules (R1-R5) above in any way.
+# ---------------------------------------------------------------------------
+ML_CONTAMINATION = 0.05
+
+# Sentinel value used ONLY when a session has zero transactions — large on
+# purpose, so "no transactions" reads as "nothing recent" rather than
+# colliding with a genuinely fresh (near-zero-minute) beneficiary. Sessions
+# WITH transactions always get the real minimum beneficiary age, even if
+# every beneficiary is old.
+NEW_BENEFICIARY_NO_SIGNAL_MINUTES = 1_000_000.0
+
+ML_FEATURE_NAMES = [
+    "amount_zscore",
+    "txn_velocity",
+    "geo_velocity",
+    "new_beneficiary_recency",
+    "failed_login_count",
+    "bytes_out_ratio",
+]
+
+
+def compute_customer_amount_stats(txn_df):
+    """Per customer_id: (mean, std) of amount_inr across all their
+    transactions in the dataset (the dataset window is 30 days, per
+    data/scenarios.md) — the baseline compared against for amount_zscore."""
+    grouped = txn_df.groupby("customer_id")["amount_inr"]
+    mean = grouped.mean()
+    std = grouped.std()
+    stats = {}
+    for customer_id in mean.index:
+        s = std[customer_id]
+        stats[customer_id] = (mean[customer_id], s if pd.notna(s) and s > 0 else 0.0)
+    return stats
+
+
+def _session_duration_minutes(session):
+    return max((session["end_ts"] - session["start_ts"]).total_seconds() / 60.0, 1.0)
+
+
+def _amount_zscore(session, customer_amount_stats):
+    """Session's total transferred amount, z-scored against this customer's
+    per-transaction amount distribution."""
+    txns = session["transactions"]
+    if not txns:
+        return 0.0
+    mean, std = customer_amount_stats.get(session["customer_id"], (0.0, 0.0))
+    if std <= 0:
+        return 0.0
+    total = sum(t["amount_inr"] for t in txns)
+    return (total - mean) / std
+
+
+def _txn_velocity(session):
+    """Transactions per hour of session duration."""
+    return len(session["transactions"]) / (_session_duration_minutes(session) / 60.0)
+
+
+def _geo_velocity(session):
+    """Login source-country switches per hour of session duration — a proxy
+    for impossible-travel-shaped behaviour without needing lat/long data."""
+    logins = sorted(
+        (e for e in session["cyber_events"] if e["event_type"] == "login"),
+        key=lambda e: e["ts"],
+    )
+    if len(logins) < 2:
+        return 0.0
+    switches = sum(1 for a, b in zip(logins, logins[1:]) if a["src_country"] != b["src_country"])
+    if switches == 0:
+        return 0.0
+    return switches / (_session_duration_minutes(session) / 60.0)
+
+
+def _new_beneficiary_recency(session):
+    """Minutes between the freshest beneficiary_added_ts and its transaction
+    in this session — small values mean a beneficiary was added just before
+    being paid. NEW_BENEFICIARY_NO_SIGNAL_MINUTES if the session has no
+    transactions at all."""
+    ages = []
+    for t in session["transactions"]:
+        added = _parse_ts(t["beneficiary_added_ts"])
+        age_min = (_parse_ts(t["ts"]) - added).total_seconds() / 60.0
+        ages.append(max(age_min, 0.0))
+    if not ages:
+        return NEW_BENEFICIARY_NO_SIGNAL_MINUTES
+    return min(ages)
+
+
+def _failed_login_count(session):
+    return float(sum(
+        1 for e in session["cyber_events"]
+        if e["event_type"] == "login" and not e["success"]
+    ))
+
+
+def _bytes_out_ratio(session, baseline_bytes_by_actor):
+    """Session's total bytes_out over this actor's baseline (median)
+    bytes_out — reuses the same baseline R5 compares against."""
+    cyber_events = session["cyber_events"]
+    if not cyber_events:
+        return 0.0
+    baseline = baseline_bytes_by_actor.get(session["customer_id"])
+    if not baseline or baseline <= 0:
+        return 0.0
+    total_bytes = sum(e["bytes_out"] for e in cyber_events)
+    return total_bytes / baseline
+
+
+def compute_session_features(session, customer_amount_stats, baseline_bytes_by_actor):
+    """Engineer the per-session ML_FEATURE_NAMES feature dict for one
+    session. Pure function of its inputs — no ML here, just numbers."""
+    return {
+        "amount_zscore": _amount_zscore(session, customer_amount_stats),
+        "txn_velocity": _txn_velocity(session),
+        "geo_velocity": _geo_velocity(session),
+        "new_beneficiary_recency": _new_beneficiary_recency(session),
+        "failed_login_count": _failed_login_count(session),
+        "bytes_out_ratio": _bytes_out_ratio(session, baseline_bytes_by_actor),
+    }
+
+
+def score_anomalies(sessions, cyber_df, txn_df):
+    """Fit IsolationForest over engineered per-session features and score
+    every session. Returns {session_id: {"anomaly_score": float in [0,1],
+    "features": {...}}} — the feature dict is stored per session for later
+    explanation (e.g. contributing_features in CONTRACTS.md's alerts.json).
+
+    ML-only: this function does not fire alerts and does not touch the
+    rules layer (R1-R5) above, per CLAUDE.md INVARIANT 4.
+    """
+    baseline_bytes_by_actor = compute_actor_baseline_bytes(cyber_df)
+    customer_amount_stats = compute_customer_amount_stats(txn_df)
+
+    session_ids = [s["session_id"] for s in sessions]
+    features_by_session = {
+        s["session_id"]: compute_session_features(s, customer_amount_stats, baseline_bytes_by_actor)
+        for s in sessions
+    }
+
+    X = np.array([
+        [features_by_session[sid][name] for name in ML_FEATURE_NAMES]
+        for sid in session_ids
+    ])
+
+    model = IsolationForest(random_state=RANDOM_SEED, contamination=ML_CONTAMINATION)
+    model.fit(X)
+    raw_anomaly = -model.score_samples(X)  # higher = more anomalous
+
+    lo, hi = raw_anomaly.min(), raw_anomaly.max()
+    spread = hi - lo
+    normalized = (raw_anomaly - lo) / spread if spread > 0 else np.zeros_like(raw_anomaly)
+
+    return {
+        sid: {"anomaly_score": float(normalized[i]), "features": features_by_session[sid]}
+        for i, sid in enumerate(session_ids)
+    }
+
+
 if __name__ == "__main__":
     cyber_df = pd.read_csv(CYBER_CSV)
     txn_df = pd.read_csv(TXN_CSV)
@@ -397,3 +560,6 @@ if __name__ == "__main__":
 
     hits = evaluate_rules(sessions, cyber_df)
     print(f"{len(hits)} rule hits across {len(sessions)} sessions")
+
+    anomaly_scores = score_anomalies(sessions, cyber_df, txn_df)
+    print(f"ML anomaly scores computed for {len(anomaly_scores)} sessions")

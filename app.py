@@ -119,12 +119,11 @@ def render_timeline(events):
         fig.add_trace(go.Scatter(
             x=[e["ts"] for e in typed],
             y=[etype] * len(typed),
-            mode="markers+text",
-            marker=dict(size=16, color=TIMELINE_COLORS[etype], line=dict(width=1, color="#0e1117")),
-            text=[e["label"] for e in typed],
-            textposition="top center",
+            mode="markers",
+            marker=dict(size=18, color=TIMELINE_COLORS[etype], line=dict(width=2, color="#FFFFFF")),
             name="Cyber event" if etype == "cyber" else "Transaction",
-            hovertemplate="%{text}<br>%{x}<extra></extra>",
+            hovertemplate="<b>%{customdata}</b><br>%{x}<extra></extra>",
+            customdata=[e["label"] for e in typed],
         ))
     fig.update_layout(
        template="plotly_white",

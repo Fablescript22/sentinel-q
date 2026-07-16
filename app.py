@@ -180,9 +180,9 @@ def render_detail(alert):
             plot_bgcolor="#F0F7F4",
             height=max(120, 60 * len(feat_df)),
             margin=dict(l=10, r=10, t=10, b=10),
-            yaxis=dict(autorange="reversed", tickfont=dict(color="#0A1628", size=14)),
-            xaxis=dict(tickfont=dict(color="#0A1628", size=13)),
-            font=dict(color="#0A1628", size=14),
+            yaxis=dict(autorange="reversed", tickfont=dict(color="#0A1628", size=12)),
+xaxis=dict(tickfont=dict(color="#0A1628")),
+font=dict(color="#0A1628"),
         )
         st.plotly_chart(fig, use_container_width=True)
 
@@ -247,7 +247,7 @@ def main():
 <div style='background-color:#0A4A3A; padding:18px 24px; border-radius:10px; margin-bottom:20px;'>
 <span style='color:#FFFFFF; font-size:1.6em; font-weight:700;'>🛡️ SENTINEL-Q</span>
 <span style='color:#A8D5C8; font-size:1em; margin-left:16px;'>Correlated Threat & Quantum Risk Intelligence</span>
-<span style='color:#A8D5C8; font-size:0.85em; float:right; margin-top:6px;'>🟢 Live · Bank of Maharashtra SOC</span>
+<span style='color:#A8D5C8; font-size:0.85em; float:right; margin-top:6px;'>🔬 Demo · Synthetic Data</span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -266,7 +266,7 @@ def main():
     cyber_df = load_cyber_events(cyber_mtime) if cyber_mtime else None
 
     k1, k2, k3, k4 = st.columns(4)
-    k1.metric("⚡ Threats Correlated", f"{kpis.get('events_analyzed', 0):,}")
+    k1.metric("⚡ Events Analyzed", f"{kpis.get('events_analyzed', 0):,}")
     k2.metric("🚨 Active Alerts", kpis.get("active_alerts", len(alerts)))
     k3.metric("✅ False Positives Suppressed", kpis.get("fp_suppressed", 0))
     k4.metric("⚛️ Quantum-Exposed Systems", kpis.get("quantum_exposed_systems", 0))
@@ -276,7 +276,7 @@ def main():
 
     st.sidebar.markdown("---")
     st.sidebar.subheader("Scenario replay")
-    if st.sidebar.button("Replay attack scenario (S1 — account takeover)"):
+    if st.sidebar.button("Load account-takeover scenario (A-0001)"):
         s1_alert = next(
             (a for a in alerts if any(r["rule_id"] == "R4" for r in a["triggered_rules"])),
             None,

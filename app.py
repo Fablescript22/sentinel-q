@@ -275,7 +275,7 @@ def main():
 
     st.sidebar.markdown("---")
     st.sidebar.subheader("Scenario replay")
-    if st.sidebar.button("Load account-takeover scenario (A-0001)"):
+    if st.sidebar.button("Load account-takeover scenario"):
         s1_alert = next(
             (a for a in alerts if any(r["rule_id"] == "R4" for r in a["triggered_rules"])),
             None,

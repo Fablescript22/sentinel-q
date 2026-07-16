@@ -34,22 +34,39 @@ HNDL_DISCLAIMER = (
 
 DARK_CSS = """
 <style>
-.stApp { background-color: #0e1117; color: #e6e6e6; }
-[data-testid="stSidebar"] { background-color: #131722; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+* { font-family: 'Inter', sans-serif; }
+
+.stApp { background-color: #F0F7F4; color: #0A1628; }
+
+[data-testid="stSidebar"] { background-color: #1A5C42 !important; border-right: 2px solid #00A99D; }
+[data-testid="stSidebar"] * { color: #FFFFFF !important; }
+[data-testid="stSidebar"] .stButton button { background-color: #00A99D !important; color: #FFFFFF !important; font-weight: 700; border-radius: 8px; border: none; width: 100%; }
+[data-testid="stSidebar"] .stButton button:hover { background-color: #007A72 !important; }
+
 div[data-testid="stMetric"] {
-    background-color: #171b26;
-    border: 1px solid #262b3a;
-    border-radius: 8px;
-    padding: 12px 16px;
+    background-color: #0A2E22;
+    border: 1px solid #00A99D;
+    border-radius: 10px;
+    padding: 16px 20px;
+    box-shadow: 0 2px 8px rgba(0,169,157,0.3);
 }
+div[data-testid="stMetric"] label { color: #A8D5C8 !important; font-weight: 600; font-size: 0.85em; }
+div[data-testid="stMetric"] div { color: #FFFFFF !important; font-weight: 700; }
+
 .severity-badge {
     display: inline-block;
     padding: 2px 10px;
     border-radius: 4px;
     font-weight: 700;
     font-size: 0.8em;
-    color: #0e1117;
+    color: #FFFFFF;
 }
+
+h1, h2, h3, h4 { color: #0A4A3A !important; }
+.stDataFrame { border: 1px solid #CBD5E0; border-radius: 8px; background-color: #FFFFFF; }
+.stSelectbox label { color: #0A4A3A; font-weight: 600; }
 </style>
 """
 
@@ -110,9 +127,9 @@ def render_timeline(events):
             hovertemplate="%{text}<br>%{x}<extra></extra>",
         ))
     fig.update_layout(
-        template="plotly_dark",
-        paper_bgcolor="#0e1117",
-        plot_bgcolor="#0e1117",
+       template="plotly_white",
+        paper_bgcolor="#F0F7F4",
+        plot_bgcolor="#F0F7F4",
         height=280,
         showlegend=True,
         yaxis=dict(title="", categoryorder="array", categoryarray=["txn", "cyber"]),
@@ -132,7 +149,7 @@ def render_detail(alert):
 
     st.markdown("#### Explanation")
     st.markdown(
-        f"<div style='font-size:1.15em; line-height:1.5; background-color:#171b26; "
+        f"<div style='font-size:1.15em; line-height:1.5; background-color:#F0F4F8; "
         f"border-left:4px solid {SEVERITY_COLORS.get(alert['severity'],'#9aa5b1')}; "
         f"padding:14px 18px; border-radius:6px;'>{alert['explanation']}</div>",
         unsafe_allow_html=True,
@@ -155,15 +172,17 @@ def render_detail(alert):
             x=feat_df["value"],
             y=feat_df["label"],
             orientation="h",
-            marker=dict(color="#4cc9f0"),
+            marker=dict(color="#00A99D"),
         ))
         fig.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="#0e1117",
-            plot_bgcolor="#0e1117",
+            template="plotly_white",
+            paper_bgcolor="#F0F7F4",
+            plot_bgcolor="#F0F7F4",
             height=max(120, 60 * len(feat_df)),
             margin=dict(l=10, r=10, t=10, b=10),
-            yaxis=dict(autorange="reversed"),
+            yaxis=dict(autorange="reversed", tickfont=dict(color="#0A1628", size=14)),
+            xaxis=dict(tickfont=dict(color="#0A1628", size=13)),
+            font=dict(color="#0A1628", size=14),
         )
         st.plotly_chart(fig, use_container_width=True)
 
@@ -189,9 +208,9 @@ def render_quantum_tab(cyber_df, alerts):
         textposition="outside",
     ))
     fig.update_layout(
-        template="plotly_dark",
-        paper_bgcolor="#0e1117",
-        plot_bgcolor="#0e1117",
+        template="plotly_white",
+        paper_bgcolor="#F0F7F4",
+        plot_bgcolor="#F0F7F4",
         height=320,
         showlegend=False,
         xaxis=dict(title=""),
@@ -224,7 +243,13 @@ def render_quantum_tab(cyber_df, alerts):
 
 def main():
     st.markdown(DARK_CSS, unsafe_allow_html=True)
-    st.title("🛡️ SENTINEL-Q — Correlated Threat & Quantum Risk Intelligence")
+    st.markdown("""
+<div style='background-color:#0A4A3A; padding:18px 24px; border-radius:10px; margin-bottom:20px;'>
+<span style='color:#FFFFFF; font-size:1.6em; font-weight:700;'>🛡️ SENTINEL-Q</span>
+<span style='color:#A8D5C8; font-size:1em; margin-left:16px;'>Correlated Threat & Quantum Risk Intelligence</span>
+<span style='color:#A8D5C8; font-size:0.85em; float:right; margin-top:6px;'>🟢 Live · Bank of Maharashtra SOC</span>
+</div>
+""", unsafe_allow_html=True)
 
     alerts_path = Path(__file__).parent / "data" / "alerts.json"
     mtime = alerts_path.stat().st_mtime if alerts_path.exists() else None
@@ -241,10 +266,10 @@ def main():
     cyber_df = load_cyber_events(cyber_mtime) if cyber_mtime else None
 
     k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Events analyzed", f"{kpis.get('events_analyzed', 0):,}")
-    k2.metric("Active alerts", kpis.get("active_alerts", len(alerts)))
-    k3.metric("False positives suppressed", kpis.get("fp_suppressed", 0))
-    k4.metric("Quantum-exposed systems", kpis.get("quantum_exposed_systems", 0))
+    k1.metric("⚡ Threats Correlated", f"{kpis.get('events_analyzed', 0):,}")
+    k2.metric("🚨 Active Alerts", kpis.get("active_alerts", len(alerts)))
+    k3.metric("✅ False Positives Suppressed", kpis.get("fp_suppressed", 0))
+    k4.metric("⚛️ Quantum-Exposed Systems", kpis.get("quantum_exposed_systems", 0))
 
     st.sidebar.header("Filters")
     severity_options = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
